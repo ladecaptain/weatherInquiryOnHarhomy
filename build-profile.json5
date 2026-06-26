@@ -1,0 +1,56 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "storeFile": "C:/Users/73160/Desktop/Kweather.p12",
+          "storePassword": "00000018E884022F4B3D2A774472ABDF631AADF98BE1CB422C7A7CD78CC5040884A184D6D12E1970",
+          "keyAlias": "kweather",
+          "keyPassword": "0000001860B5794D14DA99F8077DD1A553CA7B70BA83502FE1CB987FC091787C22EEAAB9EFF56696",
+          "signAlg": "SHA256withECDSA",
+          "profile": "C:/Users/73160/Desktop/kweaRelease.p7b",
+          "certpath": "C:/Users/73160/Desktop/Kweather.cer"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "targetSdkVersion": "6.1.1(24)",
+        "compatibleSdkVersion": "6.1.1(24)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug",
+      },
+      {
+        "name": "release"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}

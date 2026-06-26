@@ -1,0 +1,92 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "天气查询应用 - 查询实时天气和7天预报"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "天气查询"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "天气查询"
+    },
+    {
+      "name": "app_title",
+      "value": "天气查询"
+    },
+    {
+      "name": "search_hint",
+      "value": "请输入城市名..."
+    },
+    {
+      "name": "search_btn",
+      "value": "查询"
+    },
+    {
+      "name": "loading_text",
+      "value": "正在查询中..."
+    },
+    {
+      "name": "forecast_title",
+      "value": "未来7天天气预报"
+    },
+    {
+      "name": "feels_like",
+      "value": "体感温度"
+    },
+    {
+      "name": "humidity_label",
+      "value": "湿度"
+    },
+    {
+      "name": "wind_dir_label",
+      "value": "风向"
+    },
+    {
+      "name": "wind_scale_label",
+      "value": "风力"
+    },
+    {
+      "name": "wind_scale_unit",
+      "value": "级"
+    },
+    {
+      "name": "update_time_label",
+      "value": "更新时间"
+    },
+    {
+      "name": "today",
+      "value": "今天"
+    },
+    {
+      "name": "tomorrow",
+      "value": "明天"
+    },
+    {
+      "name": "city_not_found",
+      "value": "找不到该城市，请检查输入是否正确。"
+    },
+    {
+      "name": "weather_fail",
+      "value": "获取天气信息失败。"
+    },
+    {
+      "name": "forecast_fail",
+      "value": "获取天气预报失败"
+    },
+    {
+      "name": "init_prompt",
+      "value": "请输入城市名称查询天气"
+    },
+    {
+      "name": "location_reason",
+      "value": "用于获取您当前所在位置，自动查询当地天气信息"
+    },
+    {
+      "name": "locating_text",
+      "value": "正在定位中..."
+    }
+  ]
+}
