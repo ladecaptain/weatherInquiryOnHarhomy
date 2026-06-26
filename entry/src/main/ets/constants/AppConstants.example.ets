@@ -1,13 +1,15 @@
 /**
- * 应用常量定义
- * QWeather API 配置和应用级常量
+ * 应用常量定义（模板）
+ *
+ * 使用方法：
+ *   1. 复制本文件为 AppConstants.ets
+ *   2. 填入你自己的 QWeather API 密钥
+ *   3. 如需自定义 API 代理地址，修改 API_BASE
  */
+export const API_KEY = '你的和风天气API密钥'
 
-// QWeather API 密钥（免费订阅）
-export const API_KEY = 'a8482d925cc44a749e9d77a8114c5f79'
-
-// QWeather API 基础地址
-export const API_BASE = 'https://mt63yw2ku6.re.qweatherapi.com'
+// QWeather API 基础地址（免费订阅使用 devapi.qweather.com）
+export const API_BASE = 'https://devapi.qweather.com'
 
 // 城市查找 API
 export const CITY_LOOKUP_URL = `${API_BASE}/geo/v2/city/lookup`

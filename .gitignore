@@ -1,12 +1,14 @@
-/node_modules
-/oh_modules
-/local.properties
-/.idea
-**/build
-/.hvigor
-.cxx
-/.clangd
-/.clang-format
-/.clang-tidy
-**/.test
-/.appanalyzer
+# 敏感配置 — API 密钥 & URL
+entry/src/main/ets/constants/AppConstants.ets
+
+# 构建产物
+build/
+.hvigor/
+oh_modules/
+
+# IDE
+.idea/
+.appanalyzer/
+
+# 本地配置
+local.properties
