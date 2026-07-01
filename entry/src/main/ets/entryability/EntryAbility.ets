@@ -12,6 +12,8 @@ export default class EntryAbility extends UIAbility {
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
+    // 预置温度单位默认值，避免首帧 @StorageLink 取到空值
+    AppStorage.setOrCreate<string>('tempUnit', '°C')
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }
 

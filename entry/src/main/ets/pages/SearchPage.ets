@@ -3,7 +3,9 @@ import { cityLookupAll, getCurrentWeather, getForecast, cityLookup } from '../ap
 import { addFavorite, removeFavorite, getFavorites, FavoriteCity } from '../services/FavoriteCityManager'
 import { getWeatherBackgroundUrl, formatCityLocalTime } from '../utils/WeatherUtils'
 import { hasLocationPermission, getDeviceLocation } from '../services/LocationService'
+import { tempService } from '../services/TemperatureService'
 import { promptAction, router } from '@kit.ArkUI'
+import { TemperatureService } from '../services/TemperatureService'
 
 /** 收藏城市 + 天气快照 — @ObservedV2 保证属性变化触发 UI 刷新 */
 @ObservedV2
@@ -51,8 +53,11 @@ struct SearchPage {
   @State isSearching: boolean = false
   @State cards: CityCardEntry[] = []
   @State cardsReady: boolean = false
+  @StorageLink('tempUnit') tempUnit: string = '°C'
+  @State showUnitMenu: boolean = false
 
   async aboutToAppear(): Promise<void> {
+    await TemperatureService.getInstance().init(getContext(this))
     await this.initCards()
   }
 
@@ -227,18 +232,33 @@ struct SearchPage {
   }
 
   build() {
-    Column() {
-      // ── 顶部标题 ──
-      Row() {
-        Text('天气查询')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#ffffff')
-      }
-      .width('100%')
-      .padding({ left: 16, right: 16, top: 12, bottom: 8 })
+    Stack() {
+      Column() {
+        // ── 顶部标题 ──
+        Row() {
+          Text('停云见晴')
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#ffffff')
 
-      // ── 搜索栏 ──
+          Blank()
+
+          // 温度单位切换按钮（纯按钮，下拉菜单在外层 Stack）
+          Button(this.tempUnit)
+            .fontSize(12)
+            .height(32)
+            .padding({ left: 14, right: 8 })
+            .borderRadius(16)
+            .backgroundColor('rgba(255,255,255,0.10)')
+            .fontColor('rgba(255,255,255,0.85)')
+            .onClick(() => {
+              this.showUnitMenu = !this.showUnitMenu
+            })
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 28, bottom: 8 })
+
+        // ── 搜索栏 ──
       Row() {
         TextInput({ text: this.searchText, placeholder: '搜索城市...' })
           .layoutWeight(1)
@@ -308,12 +328,12 @@ struct SearchPage {
                       Text(entry.weather.text)
                         .fontSize(13)
                         .fontColor('#4fc3f7')
-                      Text(` ${entry.weather.temp}°`)
+                      Text(` ${tempService().formatTemp(entry.weather.temp, this.tempUnit)}${this.tempUnit}`)
                         .fontSize(13)
                         .fontWeight(FontWeight.Medium)
                         .fontColor('#ffffff')
                       if (entry.tempMax && entry.tempMin) {
-                        Text(`  ↑${entry.tempMax}° ↓${entry.tempMin}°`)
+                        Text(`  ↑${tempService().formatTemp(entry.tempMax, this.tempUnit)}° ↓${tempService().formatTemp(entry.tempMin, this.tempUnit)}°`)
                           .fontSize(11)
                           .fontColor('rgba(255,255,255,0.35)')
                       }
@@ -345,7 +365,7 @@ struct SearchPage {
               .width('100%')
             }
             .padding({ left: 20, right: 20, top: 14, bottom: 14 })
-          })
+          }, (entry: SearchResultEntry) => `${entry.city.id}_${this.tempUnit}`)
         }
         .width('100%')
         .layoutWeight(1)
@@ -410,13 +430,13 @@ struct SearchPage {
                   // 右列：当前气温 / 最低-最高
                   Column() {
                     if (entry.weather) {
-                      Text(`${entry.weather.temp}°`)
+                      Text(`${tempService().formatTemp(entry.weather.temp, this.tempUnit)}${this.tempUnit}`)
                         .fontSize(36)
                         .fontWeight(FontWeight.Lighter)
                         .fontColor('#ffffff')
                     }
                     if (entry.tempMax && entry.tempMin) {
-                      Text(`↑${entry.tempMax}° ↓${entry.tempMin}°`)
+                      Text(`↑${tempService().formatTemp(entry.tempMax, this.tempUnit)}° ↓${tempService().formatTemp(entry.tempMin, this.tempUnit)}°`)
                         .fontSize(12)
                         .fontColor('rgba(255,255,255,0.35)')
                         .margin({ top: 6 })
@@ -440,7 +460,7 @@ struct SearchPage {
               }
             })
             .width('100%')
-          })
+          }, (entry: CityCardEntry) => `${entry.city.id}_${this.tempUnit}`)
 
           if (this.cards.length === 0) {
             ListItem() {
@@ -465,6 +485,73 @@ struct SearchPage {
         .padding({ left: 16, right: 16, top: 4 })
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
+      }
+      }  // Column 结束
+
+      // ── 全屏透明遮罩（点击关闭下拉菜单）──
+      if (this.showUnitMenu) {
+        Column()
+          .width('100%')
+          .height('100%')
+          .zIndex(10)
+          .onClick(() => {
+            this.showUnitMenu = false
+          })
+      }
+
+      // ── 温度单位下拉菜单 ——
+      if (this.showUnitMenu) {
+        Column() {
+          Row() {
+            Text('°C  摄氏度')
+              .fontSize(13)
+              .fontColor('#ffffff')
+              .layoutWeight(1)
+            if (this.tempUnit === '°C') {
+              Text('✓')
+                .fontSize(14)
+                .fontColor('#4fc3f7')
+                .fontWeight(FontWeight.Bold)
+            }
+          }
+          .width('100%')
+          .padding({ left: 14, right: 14, top: 10, bottom: 10 })
+          .onClick(async () => {
+            await TemperatureService.getInstance().setUnit(getContext(this), '°C')
+            this.showUnitMenu = false
+          })
+
+          Divider()
+            .strokeWidth(0.5)
+            .color('rgba(255,255,255,0.10)')
+
+          Row() {
+            Text('°F  华氏度')
+              .fontSize(13)
+              .fontColor('#ffffff')
+              .layoutWeight(1)
+            if (this.tempUnit === '°F') {
+              Text('✓')
+                .fontSize(14)
+                .fontColor('#4fc3f7')
+                .fontWeight(FontWeight.Bold)
+            }
+          }
+          .width('100%')
+          .padding({ left: 14, right: 14, top: 10, bottom: 10 })
+          .onClick(async () => {
+            await TemperatureService.getInstance().setUnit(getContext(this), '°F')
+            this.showUnitMenu = false
+          })
+        }
+        .width(140)
+        .backgroundColor('rgba(18,18,28,0.98)')
+        .borderRadius(12)
+        .border({ width: 0.5, color: 'rgba(255,255,255,0.08)' })
+        .backdropBlur(20)
+        .position({ right: 16, top: 60 })
+        .zIndex(20)
+        .shadow({ radius: 16, color: 'rgba(0,0,0,0.6)' })
       }
     }
     .width('100%')

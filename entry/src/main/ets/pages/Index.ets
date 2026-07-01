@@ -1,14 +1,17 @@
-import { CurrentWeatherData, ForecastDay, HourlyForecastItem, AirQualityData } from '../model/WeatherModel'
-import { cityLookup, getCurrentWeather, getForecast, getHourlyForecast, getAirQuality } from '../api/WeatherApi'
+import { CurrentWeatherData, ForecastDay, HourlyForecastItem, AirQualityData, WarningItem } from '../model/WeatherModel'
+import { cityLookup, getCurrentWeather, getForecast, getHourlyForecast, getAirQuality, getForecast15D, getWeatherWarning } from '../api/WeatherApi'
 import { getWeatherBackgroundUrl } from '../utils/WeatherUtils'
 import { getDeviceLocation, startContinuousLocation, stopContinuousLocation, LocationResult } from '../services/LocationService'
 import { getFavorites, FavoriteCity } from '../services/FavoriteCityManager'
+import { TemperatureService, formatTempWithUnit } from '../services/TemperatureService'
 import { CurrentWeatherCard } from '../components/CurrentWeatherCard'
 import { HourlyForecast } from '../components/HourlyForecast'
 import { ForecastList } from '../components/ForecastList'
 import { EnvironmentCards } from '../components/EnvironmentCards'
 import { SunriseSetCard } from '../components/SunriseSetCard'
 import { MoonCard } from '../components/MoonCard'
+import { WarningBanner } from '../components/WarningBanner'
+import { HourlyDetailDialog, HourlyDetailPayload } from '../components/HourlyDetailDialog'
 import { router } from '@kit.ArkUI'
 
 /** 单个城市的天气状态 — @ObservedV2 保证数组元素属性变化能被 UI 感知 */
@@ -19,6 +22,9 @@ class CityWeatherState {
   @Trace hourlyData: HourlyForecastItem[] = []
   @Trace forecastDays: ForecastDay[] = []
   @Trace airQuality: AirQualityData | null = null
+  @Trace warnings: WarningItem[] = []
+  @Trace forecast15Days: ForecastDay[] = []
+  @Trace forecastMode7Day: boolean = true
   @Trace backgroundUrl: string = ''
   @Trace isLoading: boolean = false
   @Trace errorMessage: string = ''
@@ -32,7 +38,7 @@ class CityWeatherState {
 }
 
 /**
- * 天气查询主页面
+ * 停云见晴主页面
  * Swiper 左右滑动切换城市，底部悬浮栏含圆点指示器与列表图标
  */
 @Entry
@@ -42,8 +48,16 @@ struct Index {
   @State currentIndex: number = 0
   @State isReady: boolean = false
   @State isRefreshing: boolean = false
+  @StorageLink('tempUnit') tempUnit: string = '°C'
+  @State dialogPayload: HourlyDetailPayload = new HourlyDetailPayload()
+  dialogController: CustomDialogController = new CustomDialogController({
+    builder: HourlyDetailDialog({ dialogPayload: $dialogPayload }),
+    alignment: DialogAlignment.Bottom,
+    customStyle: true
+  })
 
   async aboutToAppear(): Promise<void> {
+    await TemperatureService.getInstance().init(getContext(this))
     await this.initCities()
     // 初始化完成后启动持续定位监听，位置变化时自动刷新天气
     startContinuousLocation((newLocation: LocationResult) => {
@@ -57,6 +71,19 @@ struct Index {
 
   onPageShow(): void {
     this.handleReturnFromSearch()
+  }
+
+  /** 打开逐小时天气详情弹窗 */
+  openHourlyDetail(state: CityWeatherState, index: number): void {
+    const p = new HourlyDetailPayload()
+    p.hourlyData = state.hourlyData
+    p.selectedHourIndex = index
+    p.forecastDays = state.forecastDays
+    p.forecast15Days = state.forecast15Days
+    p.currentWeather = state.currentWeather
+    p.cityName = state.city.name
+    this.dialogPayload = p
+    this.dialogController.open()
   }
 
   /** 从搜索页返回时：刷新列表 + 定位到指定城市 */
@@ -123,7 +150,8 @@ struct Index {
       this.currentIndex = 0
     }
 
-    await this.loadCityWeather(this.currentIndex)
+    // 后台加载天气（不阻塞 UI 渲染，避免页面切换卡顿）
+    this.loadCityWeather(this.currentIndex)
     this.loadRemainingWeather()
   }
 
@@ -151,7 +179,9 @@ struct Index {
         getCurrentWeather(locationId),
         getForecast(locationId),
         getHourlyForecast(locationId),
-        getAirQuality(locationId)
+        getAirQuality(locationId),
+        getWeatherWarning(locationId),
+        getForecast15D(locationId)
       ])
 
       if (results[0].status === 'fulfilled') {
@@ -170,6 +200,12 @@ struct Index {
         state.airQuality = results[3].value
       } else {
         console.warn(`[Index] AQI 数据获取失败 (${state.city.name}): ${results[3].reason}`)
+      }
+      if (results[4].status === 'fulfilled') {
+        state.warnings = results[4].value
+      }
+      if (results[5].status === 'fulfilled') {
+        state.forecast15Days = results[5].value
       }
     } catch (error) {
       state.errorMessage = (error as Error).message || '加载失败'
@@ -358,6 +394,11 @@ struct Index {
                         .textAlign(TextAlign.Center)
                         .width('100%').padding({ top: 60 })
                     } else {
+                      // 预警横幅
+                      if (state.warnings.length > 0) {
+                        WarningBanner({ warnings: state.warnings })
+                      }
+
                       CurrentWeatherCard({
                         weatherData: state.currentWeather,
                         cityName: state.city.name,
@@ -366,14 +407,49 @@ struct Index {
                       })
 
                       if (state.hourlyData.length > 0) {
-                        HourlyForecast({ hourlyData: state.hourlyData })
+                        HourlyForecast({
+                          hourlyData: state.hourlyData,
+                          onItemClick: (index: number) => {
+                            this.openHourlyDetail(state, index)
+                          }
+                        })
                       }
 
                       if (state.forecastDays.length > 0) {
-                        ForecastList({
-                          forecastDays: state.forecastDays,
-                          title: '未来 7 天'
-                        })
+                        Column() {
+                          // 7天 / 15天 切换
+                          Row({ space: 0 }) {
+                            Button('7天')
+                              .fontSize(12)
+                              .height(28)
+                              .padding({ left: 14, right: 14 })
+                              .borderRadius(14)
+                              .backgroundColor(state.forecastMode7Day ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.05)')
+                              .fontColor(state.forecastMode7Day ? '#ffffff' : 'rgba(255,255,255,0.4)')
+                              .onClick(() => {
+                                state.forecastMode7Day = true
+                              })
+                            Blank().width(4)
+                            Button('15天')
+                              .fontSize(12)
+                              .height(28)
+                              .padding({ left: 14, right: 14 })
+                              .borderRadius(14)
+                              .backgroundColor(state.forecastMode7Day ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.2)')
+                              .fontColor(state.forecastMode7Day ? 'rgba(255,255,255,0.4)' : '#ffffff')
+                              .onClick(() => {
+                                state.forecastMode7Day = false
+                              })
+                          }
+                          .width('100%')
+                          .justifyContent(FlexAlign.End)
+                          .padding({ right: 12, top: 6, bottom: 2 })
+
+                          ForecastList({
+                            forecastDays: state.forecastMode7Day ? state.forecastDays : state.forecast15Days,
+                            title: state.forecastMode7Day ? '未来 7 天' : '未来 15 天'
+                          })
+                        }
                       }
 
                       if (state.forecastDays.length > 0) {
@@ -460,6 +536,7 @@ struct Index {
           .layoutWeight(1)
           .justifyContent(FlexAlign.Center)
 
+          // 城市列表按钮
           Button({ type: ButtonType.Circle }) {
             Text('☰')
               .fontSize(18)

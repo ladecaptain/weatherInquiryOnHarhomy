@@ -2,19 +2,19 @@
   "string": [
     {
       "name": "module_desc",
-      "value": "天气查询应用 - 查询实时天气和7天预报"
+      "value": "停云见晴 - 查询实时天气和7天预报"
     },
     {
       "name": "EntryAbility_desc",
-      "value": "天气查询"
+      "value": "停云见晴"
     },
     {
       "name": "EntryAbility_label",
-      "value": "天气查询"
+      "value": "停云见晴"
     },
     {
       "name": "app_title",
-      "value": "天气查询"
+      "value": "停云见晴"
     },
     {
       "name": "search_hint",

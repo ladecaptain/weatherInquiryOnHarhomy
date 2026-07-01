@@ -1,6 +1,6 @@
-# 天气查询 Weather Inquiry
+# 停云见晴 Weather Inquiry
 
-基于 **HarmonyOS Next (API 24 / 6.1.1)** 的天气查询应用。对接 [QWeather 和风天气](https://www.qweather.com/) 免费 API，支持实时天气、逐小时预报、7 天预报、环境数据、月相、日出日落等。
+基于 **HarmonyOS Next (API 24 / 6.1.1)** 的停云见晴天气应用。对接 [QWeather 和风天气](https://www.qweather.com/) 免费 API，支持实时天气、逐小时预报、7 天预报、环境数据、月相、日出日落等。
 
 ---
 

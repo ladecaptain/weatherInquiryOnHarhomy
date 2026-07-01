@@ -1,5 +1,6 @@
 import { ForecastDay } from '../model/WeatherModel'
 import { getDayLabel, getWeatherIconResource } from '../utils/WeatherUtils'
+import { tempService } from '../services/TemperatureService'
 
 /**
  * 天气预报列表组件（竖向排列）
@@ -9,6 +10,7 @@ import { getDayLabel, getWeatherIconResource } from '../utils/WeatherUtils'
 export struct ForecastList {
   @Prop forecastDays: ForecastDay[] = []
   @Prop title: string = '未来 7 天'
+  @StorageProp('tempUnit') tempUnit: string = '°C'
 
   build() {
     Column() {
@@ -56,7 +58,7 @@ export struct ForecastList {
 
               // 右侧：最低温 → 温差指示条 → 最高温
               Row({ space: 10 }) {
-                Text(`${day.tempMin}°`)
+                Text(`${tempService().formatTemp(day.tempMin, this.tempUnit)}°`)
                   .fontSize(13)
                   .fontColor('#6db3f2')
                   .fontWeight(FontWeight.Medium)
@@ -66,7 +68,7 @@ export struct ForecastList {
                 // 温差指示条
                 this.TempDiffBar(Number(day.tempMin), Number(day.tempMax))
 
-                Text(`${day.tempMax}°`)
+                Text(`${tempService().formatTemp(day.tempMax, this.tempUnit)}°`)
                   .fontSize(13)
                   .fontColor('#ff6b6b')
                   .fontWeight(FontWeight.Medium)

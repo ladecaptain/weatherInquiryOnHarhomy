@@ -1,6 +1,6 @@
 import { http } from '@kit.NetworkKit'
-import { API_KEY, CITY_LOOKUP_URL, CURRENT_WEATHER_URL, FORECAST_URL, HOURLY_FORECAST_URL, AIR_QUALITY_URL } from '../constants/AppConstants'
-import { CityLocation, CurrentWeatherData, ForecastDay, HourlyForecastItem, CityLookupResponse, NowWeatherResponse, ForecastResponse, HourlyForecastResponse, AirQualityData, AirQualityResponse } from '../model/WeatherModel'
+import { API_KEY, CITY_LOOKUP_URL, CURRENT_WEATHER_URL, FORECAST_URL, HOURLY_FORECAST_URL, AIR_QUALITY_URL, FORECAST_15D_URL, WEATHER_WARNING_URL } from '../constants/AppConstants'
+import { CityLocation, CurrentWeatherData, ForecastDay, HourlyForecastItem, CityLookupResponse, NowWeatherResponse, ForecastResponse, HourlyForecastResponse, AirQualityData, AirQualityResponse, Forecast15DResponse, WarningItem, WarningResponse } from '../model/WeatherModel'
 
 /**
  * QWeather API 网络请求层
@@ -128,4 +128,24 @@ export async function getAirQuality(locationId: string): Promise<AirQualityData>
     throw new Error('获取空气质量数据失败。')
   }
   return data.now
+}
+
+/** 获取 15 天天气预报 */
+export async function getForecast15D(locationId: string): Promise<ForecastDay[]> {
+  const url = `${FORECAST_15D_URL}?location=${locationId}&key=${API_KEY}&lang=zh`
+  const data = await apiGet<Forecast15DResponse>(url)
+  if (data.code !== '200' || !data.daily || data.daily.length === 0) {
+    throw new Error('获取15天天气预报失败。')
+  }
+  return data.daily
+}
+
+/** 获取天气预警 */
+export async function getWeatherWarning(locationId: string): Promise<WarningItem[]> {
+  const url = `${WEATHER_WARNING_URL}?location=${locationId}&key=${API_KEY}&lang=zh`
+  const data = await apiGet<WarningResponse>(url)
+  if (data.code !== '200') {
+    throw new Error('获取天气预警失败。')
+  }
+  return data.warning ?? []
 }

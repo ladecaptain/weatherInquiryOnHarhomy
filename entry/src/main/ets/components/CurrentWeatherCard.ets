@@ -1,5 +1,6 @@
 import { CurrentWeatherData } from '../model/WeatherModel'
 import { formatTime, getWeatherIconResource } from '../utils/WeatherUtils'
+import { tempService, formatTempWithUnit } from '../services/TemperatureService'
 
 /**
  * 实时天气卡片组件（透明底）
@@ -11,6 +12,7 @@ export struct CurrentWeatherCard {
   @Prop cityName: string = ''
   @Prop tempMax: string = ''
   @Prop tempMin: string = ''
+  @StorageProp('tempUnit') tempUnit: string = '°C'
 
   build() {
     Column() {
@@ -42,7 +44,7 @@ export struct CurrentWeatherCard {
           .margin({ bottom: 8 })
 
         // 温度大数字
-        Text(`${this.weatherData.temp}°`)
+        Text(this.tempDisplay(this.weatherData.temp))
           .fontSize(56)
           .fontWeight(FontWeight.Lighter)
           .fontColor('#ffffff')
@@ -56,17 +58,17 @@ export struct CurrentWeatherCard {
           .margin({ bottom: 4 })
 
         // 体感温度
-        Text(`体感 ${this.weatherData.feelsLike}°`)
+        Text(`体感 ${tempService().formatTemp(this.weatherData.feelsLike, this.tempUnit)}${this.tempUnit}`)
           .fontSize(14)
           .fontColor('rgba(255,255,255,0.50)')
           .margin({ bottom: 24 })
 
         // 最高 / 最低温度
         Row({ space: 20 }) {
-          Text(`最低温度：${this.tempMin}°`)
+          Text(`最低：${tempService().formatTemp(this.tempMin, this.tempUnit)}${this.tempUnit}`)
             .fontSize(14)
             .fontColor('rgba(255,255,255,0.70)')
-          Text(`最高温度：${this.tempMax}°`)
+          Text(`最高：${tempService().formatTemp(this.tempMax, this.tempUnit)}${this.tempUnit}`)
             .fontSize(14)
             .fontColor('rgba(255,255,255,0.70)')
         }
@@ -75,5 +77,10 @@ export struct CurrentWeatherCard {
     }
     .width('100%')
     .padding({ left: 24, right: 24, top: 28 })
+  }
+
+  /** 格式化温度显示（传入 this.tempUnit 建立 ArkTS 依赖） */
+  private tempDisplay(celsius: string): string {
+    return `${tempService().formatTemp(celsius, this.tempUnit)}${this.tempUnit}`
   }
 }

@@ -174,3 +174,33 @@ export interface AirQualityResponse {
   updateTime: string
   now: AirQualityData
 }
+
+/** 天气预警单项数据 */
+export interface WarningItem {
+  id: string
+  sender: string
+  pubTime: string
+  title: string
+  startTime: string
+  endTime: string
+  status: string
+  level: string
+  severity: string
+  type: string
+  typeName: string
+  text: string
+  related: string
+}
+
+/** 天气预警 API 响应 */
+export interface WarningResponse {
+  code: string
+  updateTime: string
+  warning: WarningItem[]
+}
+
+/** 温度单位枚举 */
+export enum TempUnit {
+  CELSIUS = '°C',
+  FAHRENHEIT = '°F'
+}

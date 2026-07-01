@@ -1,5 +1,6 @@
 import { HourlyForecastItem } from '../model/WeatherModel'
 import { formatHourlyTime, getWeatherIconResource, isRainIcon } from '../utils/WeatherUtils'
+import { formatTempWithUnit } from '../services/TemperatureService'
 
 /**
  * 逐小时天气预报组件
@@ -8,6 +9,8 @@ import { formatHourlyTime, getWeatherIconResource, isRainIcon } from '../utils/W
 @Component
 export struct HourlyForecast {
   @Prop hourlyData: HourlyForecastItem[] = []
+  @StorageProp('tempUnit') tempUnit: string = '°C'
+  onItemClick?: (index: number) => void
 
   build() {
     Column() {
@@ -52,7 +55,7 @@ export struct HourlyForecast {
                   .height(28)
                   .margin({ bottom: 2 })
 
-                Text(`${item.temp}°`)
+                Text(formatTempWithUnit(item.temp, this.tempUnit))
                   .fontSize(15)
                   .fontWeight(FontWeight.Bold)
                   .fontColor('#ffffff')
@@ -73,6 +76,11 @@ export struct HourlyForecast {
               .margin({ right: 8 })
             }
             .width(68)
+            .onClick(() => {
+              if (this.onItemClick) {
+                this.onItemClick(index)
+              }
+            })
           }, (_item: HourlyForecastItem, index: number) => index.toString())
         }
         .listDirection(Axis.Horizontal)
