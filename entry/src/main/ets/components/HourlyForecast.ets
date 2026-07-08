@@ -9,6 +9,7 @@ import { formatTempWithUnit } from '../services/TemperatureService'
 @Component
 export struct HourlyForecast {
   @Prop hourlyData: HourlyForecastItem[] = []
+  @Prop isClearBg: boolean = false
   @StorageProp('tempUnit') tempUnit: string = '°C'
   onItemClick?: (index: number) => void
 
@@ -17,13 +18,13 @@ export struct HourlyForecast {
       // 标题行
       Row() {
         Text('逐小时预报')
-          .fontSize(16)
+          .fontSize(18)
           .fontWeight(FontWeight.Medium)
-          .fontColor('rgba(255,255,255,0.80)')
+          .fontColor('rgba(255,255,255,0.90)')
         Blank()
         Text('温度 / 降水 / 风力')
-          .fontSize(11)
-          .fontColor('rgba(255,255,255,0.30)')
+          .fontSize(13)
+          .fontColor('rgba(255,255,255,0.55)')
       }
       .width('100%')
       .padding({ left: 4, right: 4, bottom: 10 })
@@ -31,7 +32,7 @@ export struct HourlyForecast {
       if (this.hourlyData.length === 0) {
         Text('暂无逐小时预报数据')
           .fontSize(14)
-          .fontColor('rgba(255,255,255,0.35)')
+          .fontColor('rgba(255,255,255,0.55)')
           .padding({ top: 10, bottom: 10 })
       } else {
         List() {
@@ -45,8 +46,8 @@ export struct HourlyForecast {
                   .margin({ bottom: 4 })
 
                 Text(`${item.pop}%`)
-                  .fontSize(11)
-                  .fontColor(Number(item.pop) > 30 ? '#6db3f2' : 'rgba(255,255,255,0.25)')
+                  .fontSize(13)
+                  .fontColor(Number(item.pop) > 30 ? '#0A84FF' : 'rgba(255,255,255,0.55)')
                   .visibility(isRainIcon(item.icon) ? Visibility.Visible : Visibility.Hidden)
                   .margin({ bottom: 2 })
 
@@ -62,16 +63,16 @@ export struct HourlyForecast {
                   .margin({ bottom: 4 })
 
                 Text(item.windDir)
-                  .fontSize(10)
-                  .fontColor('rgba(255,255,255,0.35)')
+                  .fontSize(13)
+                  .fontColor('rgba(255,255,255,0.55)')
                   .maxLines(1)
                 Text(`${item.windScale}级`)
-                  .fontSize(10)
-                  .fontColor('rgba(255,255,255,0.25)')
+                  .fontSize(13)
+                  .fontColor('rgba(255,255,255,0.50)')
               }
               .alignItems(HorizontalAlign.Center)
               .padding({ top: 10, bottom: 10, left: 10, right: 10 })
-              .backgroundColor('rgba(255,255,255,0.06)')
+              .backgroundColor(this.isClearBg ? 'rgba(120,185,230,0.30)' : 'rgba(0,0,0,0.20)')
               .borderRadius(10)
               .margin({ right: 8 })
             }
@@ -90,7 +91,7 @@ export struct HourlyForecast {
     }
     .width('100%')
     .padding(14)
-    .backgroundColor('rgba(255,255,255,0.06)')
+    .backgroundColor(this.isClearBg ? 'rgba(120,185,230,0.35)' : 'rgba(0,0,0,0.30)')
     .backdropBlur(20)
     .borderRadius(16)
     .margin({ left: 12, right: 12, top: 10 })

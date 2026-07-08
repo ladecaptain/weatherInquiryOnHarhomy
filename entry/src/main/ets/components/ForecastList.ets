@@ -10,6 +10,7 @@ import { tempService } from '../services/TemperatureService'
 export struct ForecastList {
   @Prop forecastDays: ForecastDay[] = []
   @Prop title: string = '未来 7 天'
+  @Prop isClearBg: boolean = false
   @StorageProp('tempUnit') tempUnit: string = '°C'
 
   build() {
@@ -17,13 +18,13 @@ export struct ForecastList {
       // 标题行
       Row() {
         Text(this.title)
-          .fontSize(16)
+          .fontSize(18)
           .fontWeight(FontWeight.Medium)
-          .fontColor('rgba(255,255,255,0.80)')
+          .fontColor('rgba(255,255,255,0.90)')
         Blank()
         Text(`${this.forecastDays.length}天`)
-          .fontSize(11)
-          .fontColor('rgba(255,255,255,0.30)')
+          .fontSize(13)
+          .fontColor('rgba(255,255,255,0.55)')
       }
       .width('100%')
       .padding({ left: 4, right: 4, bottom: 10 })
@@ -31,7 +32,7 @@ export struct ForecastList {
       if (this.forecastDays.length === 0) {
         Text('暂无预报数据')
           .fontSize(14)
-          .fontColor('rgba(255,255,255,0.35)')
+          .fontColor('rgba(255,255,255,0.55)')
           .padding({ top: 10, bottom: 10 })
       } else {
         ForEach(this.forecastDays, (day: ForecastDay, index: number) => {
@@ -60,7 +61,7 @@ export struct ForecastList {
               Row({ space: 10 }) {
                 Text(`${tempService().formatTemp(day.tempMin, this.tempUnit)}°`)
                   .fontSize(13)
-                  .fontColor('#6db3f2')
+                  .fontColor('#5AC8FA')
                   .fontWeight(FontWeight.Medium)
                   .width(36)
                   .textAlign(TextAlign.End)
@@ -93,7 +94,7 @@ export struct ForecastList {
     }
     .width('100%')
     .padding(14)
-    .backgroundColor('rgba(255,255,255,0.06)')
+    .backgroundColor(this.isClearBg ? 'rgba(120,185,230,0.35)' : 'rgba(0,0,0,0.30)')
     .backdropBlur(20)
     .borderRadius(16)
     .margin({ left: 12, right: 12, top: 10 })
@@ -118,7 +119,7 @@ export struct ForecastList {
       Row()
         .width(`${this.getDiffBarWidth(minTemp, maxTemp)}%`)
         .height('100%')
-        .backgroundColor('#ff9f43')
+        .backgroundColor('#FF9500')
         .borderRadius(2)
     }
     .width(88)

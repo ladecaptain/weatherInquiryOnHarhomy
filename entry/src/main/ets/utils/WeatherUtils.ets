@@ -108,6 +108,22 @@ export function getWeatherCardColor(weatherDesc: string): string {
 }
 
 /**
+ * 判断是否为明亮晴天的背景图（白天+晴朗），用于卡片样式切换
+ */
+export function isClearWeatherBackground(weatherDesc: string, iconCode?: string, utcOffset?: string): boolean {
+  const isNight = resolveIsNight(iconCode, utcOffset)
+  if (isNight) return false
+  const weatherType = weatherDesc.toLowerCase()
+  const isClear = (weatherType.includes('clear') || weatherType.includes('sun') || weatherType.includes('晴') ||
+    weatherType.includes('despejado') || weatherType.includes('soleado') || weatherType.includes('claro')) &&
+    !weatherType.includes('cloud') && !weatherType.includes('多云') &&
+    !weatherType.includes('nube') && !weatherType.includes('nublado')
+  const isSnow = weatherType.includes('snow') || weatherType.includes('雪') ||
+    weatherType.includes('nieve') || weatherType.includes('nevada')
+  return isClear || isSnow
+}
+
+/**
  * 根据天气描述获取远程背景图 URL
  * 昼夜判断优先级：iconCode 后缀 n/d > 城市 UTC 偏移 > 设备本地时间
  */

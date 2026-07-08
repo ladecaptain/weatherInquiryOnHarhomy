@@ -46,18 +46,22 @@ class TempRange {
 export struct HourlyDetailDialog {
   controller: CustomDialogController
   @Link dialogPayload: HourlyDetailPayload
-  @State selectedDayIndex: number = 3
+  @State @Watch('onDayChanged') selectedDayIndex: number = 1
   @StorageProp('tempUnit') tempUnit: string = '°C'
 
   private settings: RenderingContextSettings = new RenderingContextSettings(true)
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings)
+
+  onDayChanged(): void {
+    setTimeout(() => { this.drawChart() }, 50)
+  }
 
   /* ── 日期工具 ── */
 
   private getSelectedDate(): string {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const d = new Date(today.getTime() + (this.selectedDayIndex - 3) * 86400000)
+    const d = new Date(today.getTime() + (this.selectedDayIndex - 1) * 86400000)
     return formatDate(d)
   }
 
@@ -103,7 +107,7 @@ export struct HourlyDetailDialog {
       : this.dialogPayload.forecast15Days
     const slots: DaySlot[] = []
 
-    for (let i = -3; i <= 3; i++) {
+    for (let i = -1; i <= 5; i++) {
       const d = new Date(today.getTime() + i * 86400000)
       const dateStr = formatDate(d)
       const fc = allForecasts.find((f: ForecastDay) => f.fxDate === dateStr)
@@ -206,7 +210,7 @@ export struct HourlyDetailDialog {
   }
 
   @State chartWidth: number = 300
-  @State chartHeight: number = 230
+  @State chartHeight: number = 560
 
   private drawChart(): void {
     const filtered = this.getFilteredHourly()
@@ -231,19 +235,16 @@ export struct HourlyDetailDialog {
     for (const p of sorted) {
       temps.push(p.temp)
     }
-    let minT = Math.min(...temps) - 2
-    let maxT = Math.max(...temps) + 2
-    const span = maxT - minT
-    if (span < 4) {
-      const pad = (4 - span) / 2 + 1
-      minT -= pad
-      maxT += pad
-    }
+    let minT = Math.min(...temps)
+    let maxT = Math.max(...temps)
+    const range = maxT - minT
+    if (range < 2) { minT -= 1; maxT += 1 }
+    else { minT -= range * 0.12; maxT += range * 0.12 }
 
-    const padL = 44
-    const padR = 20
-    const padTop = 24
-    const padBot = 48
+    const padL = 72
+    const padR = 28
+    const padTop = 36
+    const padBot = 64
     const cw = w - padL - padR
     const ch = h - padTop - padBot
 
@@ -254,44 +255,36 @@ export struct HourlyDetailDialog {
     ctx.clearRect(0, 0, w, h)
 
     // Y 轴网格 + 标签
-    const ySteps = 4
+    const ySteps = 5
     for (let i = 0; i <= ySteps; i++) {
       const y = padTop + (ch / ySteps) * i
       const val = maxT - ((maxT - minT) / ySteps) * i
       ctx.beginPath()
       ctx.moveTo(padL, y)
       ctx.lineTo(w - padR, y)
-      ctx.strokeStyle = 'rgba(255,255,255,0.07)'
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)'
       ctx.lineWidth = 1
       ctx.stroke()
-      ctx.fillStyle = 'rgba(255,255,255,0.40)'
-      ctx.font = '11px sans-serif'
+      ctx.fillStyle = 'rgba(255,255,255,0.60)'
+      ctx.font = '30px sans-serif'
       ctx.textAlign = 'right'
-      ctx.fillText(`${Math.round(val)}°`, padL - 8, y + 4)
+      ctx.fillText(`${Math.round(val)}°`, padL - 10, y + 12)
     }
 
-    // X 轴网格 + 标签
+    // X 轴标签
     const labelStep = sorted.length <= 8 ? 2 : (sorted.length <= 16 ? 3 : 4)
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'
+    ctx.font = '28px sans-serif'
+    ctx.textAlign = 'center'
     for (let i = 0; i < sorted.length; i++) {
-      const x = toX(i)
-      ctx.beginPath()
-      ctx.moveTo(x, padTop)
-      ctx.lineTo(x, padTop + ch)
-      ctx.strokeStyle = 'rgba(255,255,255,0.04)'
-      ctx.lineWidth = 1
-      ctx.stroke()
-
       if (i % labelStep === 0 || i === sorted.length - 1) {
-        ctx.fillStyle = 'rgba(255,255,255,0.40)'
-        ctx.font = '11px sans-serif'
-        ctx.textAlign = 'center'
-        ctx.fillText(`${sorted[i].hour}时`, x, h - padBot + 20)
+        ctx.fillText(`${sorted[i].hour}时`, toX(i), h - padBot + 28)
       }
     }
 
     // 渐变填充
     const gradient = ctx.createLinearGradient(0, padTop, 0, padTop + ch)
-    gradient.addColorStop(0, 'rgba(109,179,242,0.30)')
+    gradient.addColorStop(0, 'rgba(109,179,242,0.40)')
     gradient.addColorStop(1, 'rgba(109,179,242,0.03)')
 
     ctx.beginPath()
@@ -311,7 +304,7 @@ export struct HourlyDetailDialog {
       ctx.lineTo(toX(i), toY(sorted[i].temp))
     }
     ctx.strokeStyle = '#6db3f2'
-    ctx.lineWidth = 2.5
+    ctx.lineWidth = 5
     ctx.lineJoin = 'round'
     ctx.lineCap = 'round'
     ctx.stroke()
@@ -323,6 +316,7 @@ export struct HourlyDetailDialog {
       : null
     const selHour = selItem ? new Date(selItem.fxTime).getHours() : -1
 
+    const labelInterval = Math.max(1, Math.floor(sorted.length / 10))
     for (let i = 0; i < sorted.length; i++) {
       const cx = toX(i)
       const cy = toY(sorted[i].temp)
@@ -330,29 +324,31 @@ export struct HourlyDetailDialog {
 
       if (isSelected) {
         ctx.beginPath()
-        ctx.arc(cx, cy, 10, 0, 2 * Math.PI)
-        ctx.fillStyle = 'rgba(109,179,242,0.25)'
+        ctx.arc(cx, cy, 14, 0, 2 * Math.PI)
+        ctx.fillStyle = 'rgba(109,179,242,0.30)'
         ctx.fill()
         ctx.beginPath()
-        ctx.arc(cx, cy, 6, 0, 2 * Math.PI)
+        ctx.arc(cx, cy, 8, 0, 2 * Math.PI)
         ctx.fillStyle = '#6db3f2'
         ctx.fill()
         ctx.strokeStyle = '#ffffff'
-        ctx.lineWidth = 2
+        ctx.lineWidth = 3
         ctx.stroke()
         ctx.fillStyle = '#ffffff'
-        ctx.font = 'bold 12px sans-serif'
+        ctx.font = 'bold 32px sans-serif'
         ctx.textAlign = 'center'
-        ctx.fillText(`${Math.round(sorted[i].temp)}°`, cx, cy - 14)
+        ctx.fillText(`${Math.round(sorted[i].temp)}°`, cx, cy - 20)
       } else {
         ctx.beginPath()
-        ctx.arc(cx, cy, 4, 0, 2 * Math.PI)
-        ctx.fillStyle = 'rgba(255,255,255,0.55)'
-        ctx.fill()
+        ctx.arc(cx, cy, 6, 0, 2 * Math.PI)
         ctx.fillStyle = 'rgba(255,255,255,0.60)'
-        ctx.font = '10px sans-serif'
-        ctx.textAlign = 'center'
-        ctx.fillText(`${Math.round(sorted[i].temp)}°`, cx, cy - 10)
+        ctx.fill()
+        if (i % labelInterval === 0 || i === 0 || i === sorted.length - 1) {
+          ctx.fillStyle = 'rgba(255,255,255,0.75)'
+          ctx.font = '28px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.fillText(`${Math.round(sorted[i].temp)}°`, cx, cy - 14)
+        }
       }
     }
   }
@@ -623,8 +619,8 @@ export struct HourlyDetailDialog {
           Column() {
             Row() {
               Text('温度变化')
-                .fontSize(15)
-                .fontColor('rgba(255,255,255,0.60)')
+                .fontSize(17)
+                .fontColor('rgba(255,255,255,0.70)')
               Blank()
               Text(this.getSelectedDate())
                 .fontSize(12)
@@ -717,10 +713,10 @@ export struct HourlyDetailDialog {
             if (this.getFilteredHourly().length > 0) {
               Canvas(this.ctx)
                 .width('100%')
-                .height(230)
+                .height(520)
                 .onAreaChange((oldValue: Area, newValue: Area) => {
-                  const nw = vp2px(newValue.width as number)
-                  const nh = vp2px(newValue.height as number)
+                  const nw = newValue.width as number
+                  const nh = newValue.height as number
                   if (nw > 0) this.chartWidth = nw
                   if (nh > 0) this.chartHeight = nh
                 })

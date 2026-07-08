@@ -1,9 +1,10 @@
 import { CurrentWeatherData, ForecastDay, HourlyForecastItem, AirQualityData, WarningItem } from '../model/WeatherModel'
 import { cityLookup, getCurrentWeather, getForecast, getHourlyForecast, getAirQuality, getForecast15D, getWeatherWarning } from '../api/WeatherApi'
-import { getWeatherBackgroundUrl } from '../utils/WeatherUtils'
+import { getWeatherBackgroundUrl, isClearWeatherBackground } from '../utils/WeatherUtils'
 import { getDeviceLocation, startContinuousLocation, stopContinuousLocation, LocationResult } from '../services/LocationService'
 import { getFavorites, FavoriteCity } from '../services/FavoriteCityManager'
 import { TemperatureService, formatTempWithUnit } from '../services/TemperatureService'
+import { saveTodaySnapshot, loadYesterdaySnapshot } from '../services/WeatherHistoryService'
 import { CurrentWeatherCard } from '../components/CurrentWeatherCard'
 import { HourlyForecast } from '../components/HourlyForecast'
 import { ForecastList } from '../components/ForecastList'
@@ -11,8 +12,20 @@ import { EnvironmentCards } from '../components/EnvironmentCards'
 import { SunriseSetCard } from '../components/SunriseSetCard'
 import { MoonCard } from '../components/MoonCard'
 import { WarningBanner } from '../components/WarningBanner'
-import { HourlyDetailDialog, HourlyDetailPayload } from '../components/HourlyDetailDialog'
-import { router } from '@kit.ArkUI'
+import { DetailPayload } from '../components/DetailDialogs'
+import { AqiDetailDialog } from '../components/AqiDetailDialog'
+import { UvDetailDialog } from '../components/UvDetailDialog'
+import { HumidityDetailDialog } from '../components/HumidityDetailDialog'
+import { WindDetailDialog } from '../components/WindDetailDialog'
+import { VisibilityDetailDialog } from '../components/VisibilityDetailDialog'
+import { PressureDetailDialog } from '../components/PressureDetailDialog'
+import { TemperatureTrendDialog } from '../components/TemperatureTrendDialog'
+import { SunriseDetailDialog } from '../components/SunriseDetailDialog'
+import { MoonDetailDialog } from '../components/MoonDetailDialog'
+import { PrecipDetailDialog } from '../components/PrecipDetailDialog'
+import { AverageTempCard } from '../components/AverageTempCard'
+import { FeelsLikeCard } from '../components/FeelsLikeCard'
+import { router, promptAction } from '@kit.ArkUI'
 
 /** 单个城市的天气状态 — @ObservedV2 保证数组元素属性变化能被 UI 感知 */
 @ObservedV2
@@ -26,6 +39,7 @@ class CityWeatherState {
   @Trace forecast15Days: ForecastDay[] = []
   @Trace forecastMode7Day: boolean = true
   @Trace backgroundUrl: string = ''
+  @Trace isClearBg: boolean = false
   @Trace isLoading: boolean = false
   @Trace errorMessage: string = ''
 
@@ -49,9 +63,55 @@ struct Index {
   @State isReady: boolean = false
   @State isRefreshing: boolean = false
   @StorageLink('tempUnit') tempUnit: string = '°C'
-  @State dialogPayload: HourlyDetailPayload = new HourlyDetailPayload()
-  dialogController: CustomDialogController = new CustomDialogController({
-    builder: HourlyDetailDialog({ dialogPayload: $dialogPayload }),
+
+  @State envPayload: DetailPayload = new DetailPayload()
+  aqiController: CustomDialogController = new CustomDialogController({
+    builder: AqiDetailDialog({ payload: $envPayload }),
+    alignment: DialogAlignment.Bottom,
+    customStyle: true
+  })
+  uvController: CustomDialogController = new CustomDialogController({
+    builder: UvDetailDialog({ payload: $envPayload }),
+    alignment: DialogAlignment.Bottom,
+    customStyle: true
+  })
+  humidityController: CustomDialogController = new CustomDialogController({
+    builder: HumidityDetailDialog({ payload: $envPayload }),
+    alignment: DialogAlignment.Bottom,
+    customStyle: true
+  })
+  windController: CustomDialogController = new CustomDialogController({
+    builder: WindDetailDialog({ payload: $envPayload }),
+    alignment: DialogAlignment.Bottom,
+    customStyle: true
+  })
+  visController: CustomDialogController = new CustomDialogController({
+    builder: VisibilityDetailDialog({ payload: $envPayload }),
+    alignment: DialogAlignment.Bottom,
+    customStyle: true
+  })
+  pressureController: CustomDialogController = new CustomDialogController({
+    builder: PressureDetailDialog({ payload: $envPayload }),
+    alignment: DialogAlignment.Bottom,
+    customStyle: true
+  })
+  tempController: CustomDialogController = new CustomDialogController({
+    builder: TemperatureTrendDialog({ payload: $envPayload }),
+    alignment: DialogAlignment.Bottom,
+    customStyle: true
+  })
+  sunController: CustomDialogController = new CustomDialogController({
+    builder: SunriseDetailDialog({ payload: $envPayload }),
+    alignment: DialogAlignment.Bottom,
+    customStyle: true
+  })
+  moonController: CustomDialogController = new CustomDialogController({
+    builder: MoonDetailDialog({ payload: $envPayload }),
+    alignment: DialogAlignment.Bottom,
+    customStyle: true
+  })
+  precipController: CustomDialogController = new CustomDialogController({
+    builder: PrecipDetailDialog({ payload: $envPayload }),
     alignment: DialogAlignment.Bottom,
     customStyle: true
   })
@@ -73,17 +133,70 @@ struct Index {
     this.handleReturnFromSearch()
   }
 
-  /** 打开逐小时天气详情弹窗 */
-  openHourlyDetail(state: CityWeatherState, index: number): void {
-    const p = new HourlyDetailPayload()
-    p.hourlyData = state.hourlyData
-    p.selectedHourIndex = index
-    p.forecastDays = state.forecastDays
-    p.forecast15Days = state.forecast15Days
-    p.currentWeather = state.currentWeather
-    p.cityName = state.city.name
-    this.dialogPayload = p
-    this.dialogController.open()
+  /** 填充 envPayload 通用数据 */
+  private async prepareEnvPayload(state: CityWeatherState): Promise<void> {
+    this.envPayload.hourlyData = state.hourlyData
+    this.envPayload.forecastDays = state.forecastDays
+    this.envPayload.forecast15Days = state.forecast15Days
+    this.envPayload.currentWeather = state.currentWeather
+    this.envPayload.cityName = state.city.name
+    this.envPayload.aqiData = state.airQuality
+
+    const snapshot = await loadYesterdaySnapshot(getContext(this), state.city.id)
+    if (snapshot) {
+      this.envPayload.forecastDays = [snapshot.forecastDay, ...this.envPayload.forecastDays]
+      this.envPayload.hourlyData = [...this.envPayload.hourlyData, ...snapshot.hourlyData]
+    }
+  }
+
+  async openAqiDetail(state: CityWeatherState): Promise<void> {
+    await this.prepareEnvPayload(state)
+    this.aqiController.open()
+  }
+
+  async openUvDetail(state: CityWeatherState): Promise<void> {
+    await this.prepareEnvPayload(state)
+    this.uvController.open()
+  }
+
+  async openHumidityDetail(state: CityWeatherState): Promise<void> {
+    await this.prepareEnvPayload(state)
+    this.humidityController.open()
+  }
+
+  async openWindDetail(state: CityWeatherState): Promise<void> {
+    await this.prepareEnvPayload(state)
+    this.windController.open()
+  }
+
+  async openVisDetail(state: CityWeatherState): Promise<void> {
+    await this.prepareEnvPayload(state)
+    this.visController.open()
+  }
+
+  async openPressureDetail(state: CityWeatherState): Promise<void> {
+    await this.prepareEnvPayload(state)
+    this.pressureController.open()
+  }
+
+  async openTempDetail(state: CityWeatherState): Promise<void> {
+    await this.prepareEnvPayload(state)
+    this.tempController.open()
+  }
+
+  async openSunriseDetail(state: CityWeatherState): Promise<void> {
+    await this.prepareEnvPayload(state)
+    this.sunController.open()
+  }
+
+  async openMoonDetail(state: CityWeatherState): Promise<void> {
+    await this.prepareEnvPayload(state)
+    this.moonController.open()
+  }
+
+  async openPrecipDetail(state: CityWeatherState): Promise<void> {
+    await this.prepareEnvPayload(state)
+    this.precipController.open()
   }
 
   /** 从搜索页返回时：刷新列表 + 定位到指定城市 */
@@ -187,6 +300,7 @@ struct Index {
       if (results[0].status === 'fulfilled') {
         state.currentWeather = results[0].value
         state.backgroundUrl = getWeatherBackgroundUrl(results[0].value.text, results[0].value.icon, state.city.utcOffset)
+        state.isClearBg = isClearWeatherBackground(results[0].value.text, results[0].value.icon, state.city.utcOffset)
       } else {
         state.errorMessage = '获取实时天气失败'
       }
@@ -206,6 +320,10 @@ struct Index {
       }
       if (results[5].status === 'fulfilled') {
         state.forecast15Days = results[5].value
+      }
+
+      if (results[1].status === 'fulfilled' && results[2].status === 'fulfilled') {
+        saveTodaySnapshot(getContext(this), state.city.id, results[1].value[0], results[2].value)
       }
     } catch (error) {
       state.errorMessage = (error as Error).message || '加载失败'
@@ -353,7 +471,7 @@ struct Index {
         }
         .width('100%').height('100%')
         .justifyContent(FlexAlign.Center)
-        .backgroundColor('#1a1a2e')
+        .backgroundColor('#1C1C1E')
       } else if (this.cityStates.length === 0) {
         Column() {
           Text('暂无城市').fontSize(18).fontColor('#aaa')
@@ -361,7 +479,7 @@ struct Index {
         }
         .width('100%').height('100%')
         .justifyContent(FlexAlign.Center)
-        .backgroundColor('#1a1a2e')
+        .backgroundColor('#1C1C1E')
       } else {
         Swiper() {
           ForEach(this.cityStates, (state: CityWeatherState, index: number) => {
@@ -403,14 +521,16 @@ struct Index {
                         weatherData: state.currentWeather,
                         cityName: state.city.name,
                         tempMax: state.forecastDays.length > 0 ? state.forecastDays[0].tempMax : '',
-                        tempMin: state.forecastDays.length > 0 ? state.forecastDays[0].tempMin : ''
+                        tempMin: state.forecastDays.length > 0 ? state.forecastDays[0].tempMin : '',
+                        onTempClick: () => { this.openTempDetail(state) }
                       })
 
                       if (state.hourlyData.length > 0) {
                         HourlyForecast({
                           hourlyData: state.hourlyData,
-                          onItemClick: (index: number) => {
-                            this.openHourlyDetail(state, index)
+                          isClearBg: state.isClearBg,
+                          onItemClick: (_index: number) => {
+                            this.openTempDetail(state)
                           }
                         })
                       }
@@ -424,8 +544,10 @@ struct Index {
                               .height(28)
                               .padding({ left: 14, right: 14 })
                               .borderRadius(14)
-                              .backgroundColor(state.forecastMode7Day ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.05)')
-                              .fontColor(state.forecastMode7Day ? '#ffffff' : 'rgba(255,255,255,0.4)')
+                              .backgroundColor(state.isClearBg ?
+                                (state.forecastMode7Day ? 'rgba(255,255,255,0.30)' : 'rgba(255,255,255,0.08)') :
+                                (state.forecastMode7Day ? 'rgba(0,0,0,0.30)' : 'rgba(0,0,0,0.08)'))
+                              .fontColor('#ffffff')
                               .onClick(() => {
                                 state.forecastMode7Day = true
                               })
@@ -435,8 +557,10 @@ struct Index {
                               .height(28)
                               .padding({ left: 14, right: 14 })
                               .borderRadius(14)
-                              .backgroundColor(state.forecastMode7Day ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.2)')
-                              .fontColor(state.forecastMode7Day ? 'rgba(255,255,255,0.4)' : '#ffffff')
+                              .backgroundColor(state.isClearBg ?
+                                (state.forecastMode7Day ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.30)') :
+                                (state.forecastMode7Day ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.30)'))
+                              .fontColor('#ffffff')
                               .onClick(() => {
                                 state.forecastMode7Day = false
                               })
@@ -447,7 +571,8 @@ struct Index {
 
                           ForecastList({
                             forecastDays: state.forecastMode7Day ? state.forecastDays : state.forecast15Days,
-                            title: state.forecastMode7Day ? '未来 7 天' : '未来 15 天'
+                            title: state.forecastMode7Day ? '未来 7 天' : '未来 15 天',
+                            isClearBg: state.isClearBg
                           })
                         }
                       }
@@ -455,7 +580,10 @@ struct Index {
                       if (state.forecastDays.length > 0) {
                         SunriseSetCard({
                           sunrise: state.forecastDays[0].sunrise,
-                          sunset: state.forecastDays[0].sunset
+                          sunset: state.forecastDays[0].sunset,
+                          forecastDays: state.forecastDays,
+                          isClearBg: state.isClearBg,
+                          onCardClick: () => { this.openSunriseDetail(state) }
                         })
                       }
 
@@ -465,19 +593,47 @@ struct Index {
                           moonPhaseIcon: state.forecastDays[0].moonPhaseIcon,
                           moonrise: state.forecastDays[0].moonrise,
                           moonset: state.forecastDays[0].moonset,
-                          nextFullMoon: this.getNextFullMoon(state.forecastDays)
+                          nextFullMoon: this.getNextFullMoon(state.forecastDays),
+                          isClearBg: state.isClearBg,
+                          onCardClick: () => { this.openMoonDetail(state) }
                         })
                       }
 
                       EnvironmentCards({
                         aqiData: state.airQuality,
+                        isClearBg: state.isClearBg,
                         humidity: state.currentWeather?.humidity ?? '',
+                        dew: state.currentWeather?.dew ?? '',
                         uvIndex: state.forecastDays.length > 0 ? state.forecastDays[0].uvIndex : '',
                         windDir: state.currentWeather?.windDir ?? '',
                         windScale: state.currentWeather?.windScale ?? '',
                         windSpeed: state.currentWeather?.windSpeed ?? '',
+                        wind360: state.currentWeather?.wind360 ?? '',
                         visValue: state.currentWeather?.vis ?? '',
-                        pressure: state.currentWeather?.pressure ?? ''
+                        pressure: state.currentWeather?.pressure ?? '',
+                        pop: state.hourlyData.length > 0 ? state.hourlyData[0].pop : '',
+                        precip: state.currentWeather?.precip ?? '',
+                        onAqiClick: () => { this.openAqiDetail(state) },
+                        onUvClick: () => { this.openUvDetail(state) },
+                        onHumidityClick: () => { this.openHumidityDetail(state) },
+                        onWindClick: () => { this.openWindDetail(state) },
+                        onVisClick: () => { this.openVisDetail(state) },
+                        onPressureClick: () => { this.openPressureDetail(state) },
+                        onPrecipClick: () => { this.openPrecipDetail(state) },
+                        tomorrowPrecip: state.forecastDays.length > 1 ? state.forecastDays[1].precip : ''
+                      })
+
+                      AverageTempCard({
+                        tempMax: state.forecastDays.length > 0 ? state.forecastDays[0].tempMax : '',
+                        tempMin: state.forecastDays.length > 0 ? state.forecastDays[0].tempMin : '',
+                        currentTemp: state.currentWeather?.temp ?? '',
+                        isClearBg: state.isClearBg
+                      })
+
+                      FeelsLikeCard({
+                        feelsLike: state.currentWeather?.feelsLike ?? '',
+                        currentTemp: state.currentWeather?.temp ?? '',
+                        isClearBg: state.isClearBg
                       })
 
                       Column().height(80)
@@ -538,6 +694,18 @@ struct Index {
 
           // 城市列表按钮
           Button({ type: ButtonType.Circle }) {
+            Text('🗺')
+              .fontSize(18)
+              .fontColor('#ffffff')
+          }
+          .width(40).height(40)
+          .backgroundColor('rgba(255,255,255,0.12)')
+          .margin({ right: 8 })
+          .onClick(() => {
+            promptAction.showToast({ message: '地图功能即将上线', duration: 1500 })
+          })
+
+          Button({ type: ButtonType.Circle }) {
             Text('☰')
               .fontSize(18)
               .fontColor('#ffffff')
@@ -557,7 +725,7 @@ struct Index {
       }
     }
     .width('100%').height('100%')
-    .backgroundColor('#1a1a2e')
+    .backgroundColor('#1C1C1E')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

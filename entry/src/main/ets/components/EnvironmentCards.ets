@@ -3,19 +3,33 @@ import { calculateAqi, AqiResult } from '../utils/AqiCalculator'
 
 /**
  * 环境数据卡片组件
- * 2×2 网格展示 AQI、紫外线、湿度、风力风向
- * + 能见度 & 气压横排
+ * 2×2 网格：AQI、紫外线、湿度、降水
+ * + 风力风向 独立整行（罗盘在右）
+ * + 能见度 & 气压 横排等宽（气压上下加长）
  */
 @Component
 export struct EnvironmentCards {
   @Prop aqiData: AirQualityData | null = null
+  @Prop isClearBg: boolean = false
   @Prop humidity: string = ''
+  @Prop dew: string = ''
   @Prop uvIndex: string = ''
   @Prop windDir: string = ''
   @Prop windScale: string = ''
   @Prop windSpeed: string = ''
+  @Prop wind360: string = ''
   @Prop visValue: string = ''
   @Prop pressure: string = ''
+  @Prop pop: string = ''
+  @Prop precip: string = ''
+  @Prop tomorrowPrecip: string = ''
+  onAqiClick?: () => void
+  onUvClick?: () => void
+  onHumidityClick?: () => void
+  onWindClick?: () => void
+  onVisClick?: () => void
+  onPressureClick?: () => void
+  onPrecipClick?: () => void
 
   /** 预计算 AQI 展示值（API 优先，无则从污染物反推） */
   private computedAqiValue: string = ''
@@ -30,6 +44,159 @@ export struct EnvironmentCards {
 
   onPropsChanged(): void {
     this.recalcAqi()
+    this.drawWindCompass()
+  }
+
+  // 气压仪表盘 Canvas
+  private pressureSettings: RenderingContextSettings = new RenderingContextSettings(true)
+  private pressureCtx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.pressureSettings)
+
+  // 风力罗盘 Canvas
+  private windCompassSettings: RenderingContextSettings = new RenderingContextSettings(true)
+  private windCompassCtx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.windCompassSettings)
+
+  private drawPressureGauge(pVal: number): void {
+    const ctx = this.pressureCtx
+    const w = 130, h = 80
+    const cx = w / 2, cy = h - 12, r = 54
+
+    ctx.clearRect(0, 0, w, h)
+
+    // 灰色弧底
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, Math.PI, 0)
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)'
+    ctx.lineWidth = 6
+    ctx.stroke()
+
+    if (isNaN(pVal)) return
+
+    // 数值 → 角度 (950-1050 → 180°-360°)
+    const t = Math.max(0, Math.min(1, (pVal - 950) / 100))
+    const endAngle = Math.PI + t * Math.PI
+
+    // 彩色弧
+    const grad = ctx.createLinearGradient(0, cy - r, 0, cy + r)
+    grad.addColorStop(0, '#AF52DE')
+    grad.addColorStop(0.5, '#9B59B6')
+    grad.addColorStop(1, '#7B2FBE')
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, Math.PI, endAngle)
+    ctx.strokeStyle = grad
+    ctx.lineWidth = 6
+    ctx.lineCap = 'round'
+    ctx.stroke()
+    ctx.lineCap = 'butt'
+
+    // 指针
+    const a = Math.PI + t * Math.PI
+    const tipX = cx + r * Math.cos(a)
+    const tipY = cy + r * Math.sin(a)
+    ctx.beginPath()
+    ctx.moveTo(cx, cy)
+    ctx.lineTo(tipX, tipY)
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 2
+    ctx.stroke()
+  }
+
+  private drawWindCompass(): void {
+    const w = 300; const h = 300
+    const cx = w / 2; const cy = h / 2
+    const outerR = 140
+
+    const degToCanvasRad = (deg: number): number => ((deg + 270) % 360) * Math.PI / 180
+
+    const ctx = this.windCompassCtx
+    ctx.clearRect(0, 0, w, h)
+
+    // Outer ring
+    ctx.beginPath()
+    ctx.arc(cx, cy, outerR, 0, Math.PI * 2)
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+
+    // Tick marks every 10° with major at 45°
+    for (let deg = 0; deg < 360; deg += 10) {
+      const rad = degToCanvasRad(deg)
+      const isMajor = deg % 45 === 0
+      const isHalf = deg % 15 === 0
+      const tickOuter = outerR - 1
+      let tickInner: number
+      if (isMajor) {
+        tickInner = outerR - 28
+      } else if (isHalf) {
+        tickInner = outerR - 18
+      } else {
+        tickInner = outerR - 12
+      }
+      ctx.beginPath()
+      ctx.moveTo(cx + tickInner * Math.cos(rad), cy + tickInner * Math.sin(rad))
+      ctx.lineTo(cx + tickOuter * Math.cos(rad), cy + tickOuter * Math.sin(rad))
+      ctx.strokeStyle = isMajor
+        ? 'rgba(255,255,255,0.55)'
+        : (isHalf ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.10)')
+      ctx.lineWidth = isMajor ? 1.5 : 0.8
+      ctx.stroke()
+    }
+
+    // Direction labels (larger fonts than before)
+    const directions: [string, number][] = [
+      ['北', 0], ['东北', 45], ['东', 90], ['东南', 135],
+      ['南', 180], ['西南', 225], ['西', 270], ['西北', 315]
+    ]
+    for (const dirItem of directions) {
+      const label = dirItem[0]
+      const deg = dirItem[1]
+      const rad = degToCanvasRad(deg)
+      const lx = cx + (outerR - 55) * Math.cos(rad)
+      const ly = cy + (outerR - 55) * Math.sin(rad)
+      ctx.fillStyle = 'rgba(255,255,255,0.80)'
+      ctx.font = 'bold 40px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, lx, ly)
+    }
+
+    // Wind direction arrow
+    const windDeg = parseFloat(this.wind360)
+    const arrowDeg = isNaN(windDeg) ? 0 : (windDeg + 180) % 360
+    const arrowRad = degToCanvasRad(arrowDeg)
+    const arrowLen = outerR - 65
+
+    const ax = cx + arrowLen * Math.cos(arrowRad)
+    const ay = cy + arrowLen * Math.sin(arrowRad)
+
+    // Arrow body
+    ctx.beginPath()
+    ctx.moveTo(cx, cy)
+    ctx.lineTo(ax, ay)
+    ctx.strokeStyle = '#5AC8FA'
+    ctx.lineWidth = 4
+    ctx.lineCap = 'round'
+    ctx.stroke()
+    ctx.lineCap = 'butt'
+
+    // Arrow head
+    const headLen = 18
+    const headHW = 11
+    const sx = ax - headLen * Math.cos(arrowRad)
+    const sy = ay - headLen * Math.sin(arrowRad)
+    const perp = arrowRad + Math.PI / 2
+    ctx.beginPath()
+    ctx.moveTo(ax, ay)
+    ctx.lineTo(sx + headHW * Math.cos(perp), sy + headHW * Math.sin(perp))
+    ctx.lineTo(sx - headHW * Math.cos(perp), sy - headHW * Math.sin(perp))
+    ctx.closePath()
+    ctx.fillStyle = '#5AC8FA'
+    ctx.fill()
+
+    // Center dot
+    ctx.beginPath()
+    ctx.arc(cx, cy, 7, 0, Math.PI * 2)
+    ctx.fillStyle = '#5AC8FA'
+    ctx.fill()
   }
 
   private recalcAqi(): void {
@@ -67,20 +234,20 @@ export struct EnvironmentCards {
       // 标题行
       Row() {
         Text('环境数据')
-          .fontSize(16)
+          .fontSize(18)
           .fontWeight(FontWeight.Medium)
-          .fontColor('rgba(255,255,255,0.80)')
+          .fontColor('rgba(255,255,255,0.90)')
         Blank()
       }
       .width('100%')
       .padding({ left: 4, right: 4, bottom: 10 })
 
-      // 2×2 网格
+      // ── 2×2 网格：AQI / 紫外线 / 湿度 / 降水 ──
       Grid() {
-        GridItem() { this.AqiCard() }
-        GridItem() { this.UvCard() }
-        GridItem() { this.HumidityCard() }
-        GridItem() { this.WindCard() }
+        GridItem() { this.AqiCell() }.onClick(() => { if (this.onAqiClick) this.onAqiClick() })
+        GridItem() { this.UvCell() }.onClick(() => { if (this.onUvClick) this.onUvClick() })
+        GridItem() { this.HumidityCell() }.onClick(() => { if (this.onHumidityClick) this.onHumidityClick() })
+        GridItem() { this.PrecipCell() }.onClick(() => { if (this.onPrecipClick) this.onPrecipClick() })
       }
       .columnsTemplate('1fr 1fr')
       .rowsTemplate('1fr 1fr')
@@ -89,186 +256,206 @@ export struct EnvironmentCards {
       .width('100%')
       .height(220)
 
-      // 能见度 & 气压 横排
+      // ── 风力风向 独立整行（标题 + 信息 + 罗盘在右） ──
+      Column() {
+        // 标题
+        Text('风力风向')
+          .fontSize(13)
+          .fontColor('rgba(255,255,255,0.50)')
+          .alignSelf(ItemAlign.Start)
+          .margin({ left: 10, top: 8 })
+
+        // 大型风力罗盘（居中）
+        Canvas(this.windCompassCtx)
+          .width(300).height(300)
+          .alignSelf(ItemAlign.Center)
+          .onReady(() => { this.drawWindCompass() })
+
+        // 底部文字信息
+        Row({ space: 8 }) {
+          Text(this.windDir && this.windDir.length > 0 ? this.windDir : '--')
+            .fontSize(22)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#5AC8FA')
+          Text(this.windScale && this.windScale.length > 0 ? `${this.windScale}级` : '')
+            .fontSize(16)
+            .fontColor('#5AC8FA')
+            .fontWeight(FontWeight.Medium)
+          Text(this.windSpeed && this.windSpeed.length > 0 ? `风速 ${this.windSpeed} km/h` : '')
+            .fontSize(13)
+            .fontColor('rgba(255,255,255,0.50)')
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.Center)
+        .padding({ left: 10, right: 10, bottom: 10 })
+      }
+      .width('100%')
+      .padding({ top: 4, bottom: 4 })
+      .backgroundColor(this.isClearBg ? 'rgba(120,185,230,0.28)' : 'rgba(0,0,0,0.20)')
+      .borderRadius(12)
+      .margin({ top: 10 })
+      .onClick(() => { if (this.onWindClick) this.onWindClick() })
+
+      // ── 能见度 & 气压 横排等宽、气压纵向加长 ──
       Row({ space: 10 }) {
         // 能见度
         Column() {
           Text('能见度')
-            .fontSize(12)
-            .fontColor('rgba(255,255,255,0.40)')
-            .margin({ bottom: 4 })
+            .fontSize(13)
+            .fontColor('rgba(255,255,255,0.50)')
+            .margin({ bottom: 6 })
 
           Text(this.visValue && this.visValue.length > 0 ? `${this.visValue} km` : '--')
-            .fontSize(20)
+            .fontSize(22)
             .fontWeight(FontWeight.Bold)
             .fontColor(this.getVisibilityColor(Number(this.visValue)))
             .margin({ bottom: 2 })
 
           Text(this.visValue && this.visValue.length > 0 ? this.getVisibilityDesc(Number(this.visValue)) : '')
-            .fontSize(11)
+            .fontSize(13)
             .fontColor(this.getVisibilityColor(Number(this.visValue)))
         }
         .width('50%')
-        .height(88)
+        .height(110)
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
-        .backgroundColor('rgba(255,255,255,0.05)')
+        .backgroundColor(this.isClearBg ? 'rgba(120,185,230,0.28)' : 'rgba(0,0,0,0.20)')
         .borderRadius(12)
+        .onClick(() => { if (this.onVisClick) this.onVisClick() })
 
-        // 气压
+        // 气压 — 上下加长
         Column() {
           Text('气压')
-            .fontSize(12)
-            .fontColor('rgba(255,255,255,0.40)')
-            .margin({ bottom: 4 })
+            .fontSize(13)
+            .fontColor('rgba(255,255,255,0.50)')
+            .margin({ bottom: 6 })
 
-          Text(this.pressure && this.pressure.length > 0 ? `${this.pressure} hPa` : '--')
-            .fontSize(20)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#74b9ff')
-            .margin({ bottom: 2 })
+          Stack() {
+            Canvas(this.pressureCtx)
+              .width(130).height(80)
+              .onReady(() => { this.drawPressureGauge(Number(this.pressure)) })
+
+            Column() {
+              Text(this.pressure && this.pressure.length > 0 ? `${this.pressure}` : '--')
+                .fontSize(16)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#AF52DE')
+              Text('hPa')
+                .fontSize(12)
+                .fontColor('rgba(255,255,255,0.50)')
+            }
+          }
+          .margin({ bottom: 2 })
 
           Text(this.pressure && this.pressure.length > 0 ? this.getPressureDesc(Number(this.pressure)) : '')
-            .fontSize(11)
-            .fontColor('#74b9ff')
+             .fontSize(13)
+            .fontColor('#AF52DE')
         }
         .width('50%')
-        .height(88)
+        .height(110)
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
-        .backgroundColor('rgba(255,255,255,0.05)')
+        .backgroundColor(this.isClearBg ? 'rgba(120,185,230,0.28)' : 'rgba(0,0,0,0.20)')
         .borderRadius(12)
+        .onClick(() => { if (this.onPressureClick) this.onPressureClick() })
       }
       .width('100%')
       .margin({ top: 10 })
     }
     .width('100%')
     .padding(14)
-    .backgroundColor('rgba(255,255,255,0.06)')
+    .backgroundColor(this.isClearBg ? 'rgba(120,185,230,0.35)' : 'rgba(0,0,0,0.30)')
     .backdropBlur(20)
     .borderRadius(16)
     .margin({ left: 12, right: 12, top: 10 })
   }
 
-  /** AQI 卡片（使用预计算值，避免 Builder 内逻辑） */
-  @Builder
-  AqiCard() {
+  // ═══════════ @Builder 卡片 ═══════════
+
+  @Builder AqiCell() {
     Column() {
-      Text('AQI')
-        .fontSize(12)
-        .fontColor('rgba(255,255,255,0.40)')
-        .margin({ bottom: 4 })
-
-      Text(this.computedAqiValue)
-        .fontSize(30)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.computedAqiColor)
-        .margin({ bottom: 2 })
-
-      Text(this.computedAqiCategory)
-        .fontSize(12)
-        .fontColor(this.computedAqiColor)
-        .fontWeight(FontWeight.Medium)
-        .margin({ bottom: 4 })
-
-      Text(this.computedAqiPrimary)
-        .fontSize(10)
-        .fontColor('rgba(255,255,255,0.3)')
+      Text('AQI').fontSize(14).fontColor('rgba(255,255,255,0.60)').margin({ bottom: 4 })
+      Text(this.computedAqiValue).fontSize(30).fontWeight(FontWeight.Bold).fontColor(this.computedAqiColor).margin({ bottom: 2 })
+      Text(this.computedAqiCategory).fontSize(14).fontColor(this.computedAqiColor).fontWeight(FontWeight.Medium).margin({ bottom: 4 })
+      Text(this.computedAqiPrimary).fontSize(12).fontColor('rgba(255,255,255,0.50)')
     }
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
-    .alignItems(HorizontalAlign.Center)
-    .backgroundColor('rgba(255,255,255,0.05)')
-    .borderRadius(12)
+    .width('100%').height('100%')
+    .justifyContent(FlexAlign.Center).alignItems(HorizontalAlign.Center)
+    .backgroundColor(this.isClearBg ? 'rgba(120,185,230,0.28)' : 'rgba(0,0,0,0.20)').borderRadius(12)
   }
 
-  /** 紫外线卡片 */
-  @Builder
-  UvCard() {
+  @Builder UvCell() {
     Column() {
-      Text('紫外线')
-        .fontSize(12)
-        .fontColor('rgba(255,255,255,0.40)')
+      Text('紫外线').fontSize(14).fontColor('rgba(255,255,255,0.60)').margin({ bottom: 4 })
+      Text(this.uvIndex && this.uvIndex.length > 0 ? `${this.uvIndex} | ${this.getUvLevel(Number(this.uvIndex))}` : '--')
+        .fontSize(16).fontWeight(FontWeight.Bold)
+        .fontColor(this.uvIndex && this.uvIndex.length > 0 ? this.getUvColor(Number(this.uvIndex)) : 'rgba(255,255,255,0.25)')
         .margin({ bottom: 4 })
 
-      Text(this.uvIndex && this.uvIndex.length > 0 ? this.uvIndex : '--')
-        .fontSize(30)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.uvIndex && this.uvIndex.length > 0 ? this.getUvColor(Number(this.uvIndex)) : 'rgba(255,255,255,0.25)')
-        .margin({ bottom: 2 })
+      Stack() {
+        Row().width('70%').height(4).borderRadius(2)
+          .linearGradient({ direction: GradientDirection.Right,
+            colors: [['#00e676', 0], ['#ffd600', 0.25], ['#ff9100', 0.45], ['#ff5252', 0.7], ['#d500f9', 1]] })
 
-      Text(this.uvIndex && this.uvIndex.length > 0 ? this.getUvLevel(Number(this.uvIndex)) : '')
-        .fontSize(12)
-        .fontColor(this.uvIndex && this.uvIndex.length > 0 ? this.getUvColor(Number(this.uvIndex)) : 'rgba(255,255,255,0.25)')
-        .fontWeight(FontWeight.Medium)
+        if (this.uvIndex && this.uvIndex.length > 0) {
+          Circle().width(10).height(10).fill(this.getUvColor(Number(this.uvIndex)))
+            .stroke(Color.White).strokeWidth(2)
+            .position({ x: `${Math.min(Number(this.uvIndex) / 12 * 70, 70)}%`, y: -3 })
+            .translate({ x: -5 })
+        }
+      }.width('70%').height(10).margin({ top: 2 })
+
+      if (this.uvIndex && Number(this.uvIndex) >= 3) {
+        Text('注意防晒').fontSize(13).fontColor(this.getUvColor(Number(this.uvIndex))).margin({ top: 4 })
+      }
     }
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
-    .alignItems(HorizontalAlign.Center)
-    .backgroundColor('rgba(255,255,255,0.05)')
-    .borderRadius(12)
+    .width('100%').height('100%')
+    .justifyContent(FlexAlign.Center).alignItems(HorizontalAlign.Center)
+    .backgroundColor(this.isClearBg ? 'rgba(120,185,230,0.28)' : 'rgba(0,0,0,0.20)').borderRadius(12)
   }
 
-  /** 湿度卡片 */
-  @Builder
-  HumidityCard() {
+  @Builder HumidityCell() {
     Column() {
-      Text('湿度')
-        .fontSize(12)
-        .fontColor('rgba(255,255,255,0.40)')
-        .margin({ bottom: 4 })
-
+      Text('湿度').fontSize(14).fontColor('rgba(255,255,255,0.60)').margin({ bottom: 4 })
       Text(this.humidity && this.humidity.length > 0 ? `${this.humidity}%` : '--')
-        .fontSize(30)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.humidity && this.humidity.length > 0 ? '#4ecdc4' : 'rgba(255,255,255,0.25)')
+        .fontSize(30).fontWeight(FontWeight.Bold)
+        .fontColor(this.humidity && this.humidity.length > 0 ? '#9B59B6' : 'rgba(255,255,255,0.25)')
         .margin({ bottom: 2 })
-
       Text(this.humidity && this.humidity.length > 0 ? this.getHumidityDesc(Number(this.humidity)) : '')
-        .fontSize(12)
-        .fontColor('#4ecdc4')
-        .fontWeight(FontWeight.Medium)
+        .fontSize(14).fontColor('#9B59B6').fontWeight(FontWeight.Medium)
+      Text(this.dew && this.dew.length > 0 ? `露点温度 ${this.dew}°` : '')
+        .fontSize(12).fontColor('rgba(255,255,255,0.50)').margin({ top: 2 })
     }
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
-    .alignItems(HorizontalAlign.Center)
-    .backgroundColor('rgba(255,255,255,0.05)')
-    .borderRadius(12)
+    .width('100%').height('100%')
+    .justifyContent(FlexAlign.Center).alignItems(HorizontalAlign.Center)
+    .backgroundColor(this.isClearBg ? 'rgba(120,185,230,0.28)' : 'rgba(0,0,0,0.20)').borderRadius(12)
   }
 
-  /** 风力风向卡片 */
-  @Builder
-  WindCard() {
+  @Builder PrecipCell() {
     Column() {
-      Text('风力风向')
-        .fontSize(12)
-        .fontColor('rgba(255,255,255,0.40)')
-        .margin({ bottom: 4 })
+      Text('降水').fontSize(14).fontColor('rgba(255,255,255,0.60)').margin({ bottom: 4 })
 
-      Text(this.windDir && this.windDir.length > 0 ? this.windDir : '--')
-        .fontSize(26)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.windDir && this.windDir.length > 0 ? '#a29bfe' : 'rgba(255,255,255,0.25)')
+      Text(this.precip && this.precip.length > 0 ? `${this.precip}mm` : '0mm')
+        .fontSize(22).fontWeight(FontWeight.Bold)
+        .fontColor(this.getPrecipColor(parseFloat(this.precip)))
         .margin({ bottom: 2 })
 
-      Text(this.windDir && this.windDir.length > 0 ? `${this.windScale}级${this.windSpeed ? ' · ' + this.windSpeed + 'km/h' : ''}` : '')
-        .fontSize(11)
-        .fontColor('#a29bfe')
-        .fontWeight(FontWeight.Medium)
-        .maxLines(1)
+      Text(`今天`).fontSize(12).fontColor('rgba(255,255,255,0.50)')
+
+      if (this.pop && this.pop.length > 0 && parseFloat(this.pop) > 0) {
+        Text(`降水概率 ${this.pop}%`).fontSize(13).fontColor('rgba(255,255,255,0.50)').margin({ top: 2 })
+      }
+
+      if (this.tomorrowPrecip && this.tomorrowPrecip.length > 0 && this.tomorrowPrecip !== '0.0') {
+        Text(`明天预计 ${this.tomorrowPrecip}mm`).fontSize(13).fontColor('rgba(255,255,255,0.50)').margin({ top: 2 })
+      }
     }
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
-    .alignItems(HorizontalAlign.Center)
-    .backgroundColor('rgba(255,255,255,0.05)')
-    .borderRadius(12)
+    .width('100%').height('100%')
+    .justifyContent(FlexAlign.Center).alignItems(HorizontalAlign.Center)
+    .backgroundColor(this.isClearBg ? 'rgba(120,185,230,0.28)' : 'rgba(0,0,0,0.20)').borderRadius(12)
   }
 
-  // ─── 辅助方法 ──────────────────────────────────────
+  // ═══════════ 辅助方法 ═══════════
 
   getAqiColorByNumber(aqi: number): string {
     if (aqi <= 50) return '#00e676'
@@ -290,7 +477,7 @@ export struct EnvironmentCards {
   getUvLevel(uv: number): string {
     if (uv <= 2) return '最弱'
     if (uv <= 5) return '中等'
-    if (uv <= 7) return '较强'
+    if (uv <= 7) return '强'
     if (uv <= 10) return '很强'
     return '极强'
   }
@@ -325,5 +512,20 @@ export struct EnvironmentCards {
     if (pressure > 1025) return '偏高'
     if (pressure < 1005) return '偏低'
     return '正常'
+  }
+
+  getPopColor(pop: number): string {
+    if (isNaN(pop)) return 'rgba(255,255,255,0.70)'
+    if (pop >= 80) return '#0A84FF'
+    if (pop >= 50) return '#5AC8FA'
+    return 'rgba(255,255,255,0.70)'
+  }
+
+  getPrecipColor(precip: number): string {
+    if (isNaN(precip)) return 'rgba(255,255,255,0.70)'
+    if (precip >= 10) return '#0A84FF'
+    if (precip >= 5) return '#5AC8FA'
+    if (precip > 0) return '#AF52DE'
+    return 'rgba(255,255,255,0.50)'
   }
 }

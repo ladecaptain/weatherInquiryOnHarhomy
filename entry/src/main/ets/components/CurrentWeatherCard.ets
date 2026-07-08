@@ -13,6 +13,7 @@ export struct CurrentWeatherCard {
   @Prop tempMax: string = ''
   @Prop tempMin: string = ''
   @StorageProp('tempUnit') tempUnit: string = '°C'
+  onTempClick?: () => void
 
   build() {
     Column() {
@@ -33,8 +34,8 @@ export struct CurrentWeatherCard {
 
         // 更新时间
         Text(`更新 ${formatTime(this.weatherData.obsTime)}`)
-          .fontSize(12)
-          .fontColor('rgba(255,255,255,0.45)')
+          .fontSize(14)
+          .fontColor('rgba(255,255,255,0.55)')
           .margin({ bottom: 16 })
 
         // 天气图标
@@ -43,13 +44,16 @@ export struct CurrentWeatherCard {
           .height(90)
           .margin({ bottom: 8 })
 
-        // 温度大数字
-        Text(this.tempDisplay(this.weatherData.temp))
-          .fontSize(56)
-          .fontWeight(FontWeight.Lighter)
-          .fontColor('#ffffff')
-          .textShadow({ radius: 10, color: 'rgba(0,0,0,0.25)', offsetX: 0, offsetY: 2 })
-          .margin({ bottom: 2 })
+        // 温度大数字（点击打开趋势弹窗）
+        Column() {
+          Text(this.tempDisplay(this.weatherData.temp))
+            .fontSize(56)
+            .fontWeight(FontWeight.Lighter)
+            .fontColor('#ffffff')
+            .textShadow({ radius: 10, color: 'rgba(0,0,0,0.25)', offsetX: 0, offsetY: 2 })
+            .margin({ bottom: 2 })
+        }
+        .onClick(() => { if (this.onTempClick) this.onTempClick() })
 
         // 天气描述
         Text(this.weatherData.text)
@@ -60,7 +64,7 @@ export struct CurrentWeatherCard {
         // 体感温度
         Text(`体感 ${tempService().formatTemp(this.weatherData.feelsLike, this.tempUnit)}${this.tempUnit}`)
           .fontSize(14)
-          .fontColor('rgba(255,255,255,0.50)')
+          .fontColor('rgba(255,255,255,0.65)')
           .margin({ bottom: 24 })
 
         // 最高 / 最低温度

@@ -8,7 +8,9 @@ export struct MoonCard {
   @Prop moonPhaseIcon: string = ''
   @Prop moonrise: string = ''
   @Prop moonset: string = ''
-  @Prop nextFullMoon: string = '' // 预计算好的展示文字，如 "距满月 3天"
+  @Prop nextFullMoon: string = ''
+  @Prop isClearBg: boolean = false
+  onCardClick?: () => void
 
   build() {
     Column() {
@@ -22,12 +24,16 @@ export struct MoonCard {
             .fontSize(18)
             .fontWeight(FontWeight.Medium)
             .fontColor('#ffffff')
-            .margin({ bottom: 4 })
+            .margin({ bottom: 2 })
+
+          Text(this.getMoonIllumination(this.moonPhaseIcon))
+            .fontSize(14)
+            .fontColor('rgba(255,255,255,0.60)')
 
           if (this.nextFullMoon && this.nextFullMoon.length > 0) {
             Text(this.nextFullMoon)
-              .fontSize(12)
-              .fontColor('rgba(255,255,255,0.45)')
+              .fontSize(14)
+              .fontColor('rgba(255,255,255,0.60)')
           }
         }
         .alignItems(HorizontalAlign.Start)
@@ -39,8 +45,8 @@ export struct MoonCard {
           if (this.moonrise && this.moonrise.length > 0) {
             Row() {
               Text('月出')
-                .fontSize(11)
-                .fontColor('rgba(255,255,255,0.35)')
+                .fontSize(13)
+                .fontColor('rgba(255,255,255,0.55)')
                 .margin({ right: 4 })
               Text(this.moonrise)
                 .fontSize(14)
@@ -53,8 +59,8 @@ export struct MoonCard {
           if (this.moonset && this.moonset.length > 0) {
             Row() {
               Text('月落')
-                .fontSize(11)
-                .fontColor('rgba(255,255,255,0.35)')
+                .fontSize(13)
+                .fontColor('rgba(255,255,255,0.55)')
                 .margin({ right: 4 })
               Text(this.moonset)
                 .fontSize(14)
@@ -70,22 +76,34 @@ export struct MoonCard {
     }
     .width('100%')
     .padding(14)
-    .backgroundColor('rgba(255,255,255,0.06)')
+    .backgroundColor(this.isClearBg ? 'rgba(120,185,230,0.35)' : 'rgba(0,0,0,0.30)')
     .backdropBlur(20)
     .borderRadius(16)
     .margin({ left: 12, right: 12, top: 10 })
+    .onClick(() => { if (this.onCardClick) this.onCardClick() })
   }
 
-  /** 月相 emoji 映射 */
   private getMoonEmoji(iconCode: string): string {
-    if (iconCode === '800') return '🌑'  // 新月
-    if (iconCode === '801') return '🌒'  // 蛾眉月
-    if (iconCode === '802') return '🌓'  // 上弦月
-    if (iconCode === '803') return '🌔'  // 盈凸月
-    if (iconCode === '804') return '🌕'  // 满月
-    if (iconCode === '805') return '🌖'  // 亏凸月
-    if (iconCode === '806') return '🌗'  // 下弦月
-    if (iconCode === '807') return '🌘'  // 残月
+    if (iconCode === '800') return '🌑'
+    if (iconCode === '801') return '🌒'
+    if (iconCode === '802') return '🌓'
+    if (iconCode === '803') return '🌔'
+    if (iconCode === '804') return '🌕'
+    if (iconCode === '805') return '🌖'
+    if (iconCode === '806') return '🌗'
+    if (iconCode === '807') return '🌘'
     return '🌙'
+  }
+
+  private getMoonIllumination(iconCode: string): string {
+    if (iconCode === '800') return '0% 照射'
+    if (iconCode === '801') return '~15% 照射'
+    if (iconCode === '802') return '~50% 照射'
+    if (iconCode === '803') return '~75% 照射'
+    if (iconCode === '804') return '~100% 照射'
+    if (iconCode === '805') return '~85% 照射'
+    if (iconCode === '806') return '~50% 照射'
+    if (iconCode === '807') return '~25% 照射'
+    return ''
   }
 }
