@@ -45,6 +45,7 @@ export struct EnvironmentCards {
   onPropsChanged(): void {
     this.recalcAqi()
     this.drawWindCompass()
+    this.drawPressureGauge(Number(this.pressure))
   }
 
   // 气压仪表盘 Canvas
@@ -437,7 +438,7 @@ export struct EnvironmentCards {
 
       Text(this.precip && this.precip.length > 0 ? `${this.precip}mm` : '0mm')
         .fontSize(22).fontWeight(FontWeight.Bold)
-        .fontColor(this.getPrecipColor(parseFloat(this.precip)))
+        .fontColor(this.getPrecipColor(this.precip && this.precip.length > 0 ? parseFloat(this.precip) : 0))
         .margin({ bottom: 2 })
 
       Text(`今天`).fontSize(12).fontColor('rgba(255,255,255,0.50)')

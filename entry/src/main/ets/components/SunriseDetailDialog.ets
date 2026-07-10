@@ -21,10 +21,11 @@ export struct SunriseDetailDialog {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const all = this.payload.forecastDays
     const slots: SunSlot[] = []
-    for (let i = 0; i < all.length && slots.length < 7; i++) {
+    for (let i = 0; i < 7; i++) {
       const d = new Date(today.getTime() + i * 86400000)
       const ds = formatDate(d)
-      const fc = all[i]
+      const fc = all.find((f: ForecastDay) => f.fxDate === ds)
+      if (!fc) continue
       slots.push({
         dateStr: ds,
         label: getDayLabel(ds),

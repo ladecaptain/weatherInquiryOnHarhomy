@@ -39,6 +39,13 @@ export struct WarningBanner {
 
   build() {
     Column() {
+      if (this.warnings.length === 0) {
+        Text('暂无预警')
+          .fontSize(14)
+          .fontColor('rgba(255,255,255,0.50)')
+          .width('100%')
+          .padding({ left: 14, right: 14, top: 12, bottom: 12 })
+      } else {
       // 折叠状态：显示第一条预警概要
       Row({ space: 8 }) {
         Text(this.getLevelIcon(this.warnings[0].level))
@@ -71,7 +78,7 @@ export struct WarningBanner {
       })
 
       // 展开状态：显示所有预警详情
-      if (this.isExpanded) {
+      if (this.isExpanded && this.warnings.length > 0) {
         Column() {
           ForEach(this.warnings, (item: WarningItem, index: number) => {
             Column() {
@@ -127,6 +134,7 @@ export struct WarningBanner {
         .width('100%')
         .backgroundColor('rgba(0,0,0,0.35)')
         .borderRadius({ bottomLeft: 10, bottomRight: 10 })
+      }
       }
     }
     .width('100%')
